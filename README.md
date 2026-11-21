@@ -1,3 +1,5 @@
+[![Tests](https://github.com/ibangaudo118-droid/smart-err-corrector/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/ibangaudo118-droid/smart-err-corrector/actions/workflows/test.yml)
+
 # Smart Error Corrector
 
 Catch uncaught Python runtime errors in your terminal via `sys.excepthook`, inspect a diagnosis and `BEFORE` / `AFTER` replacement preview, and choose whether to apply (`[a]`) or keep (`[k]`) the original code.
