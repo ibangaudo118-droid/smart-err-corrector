@@ -108,12 +108,22 @@ def _groq_fallback(
         parsed = json.loads(raw_body)
         content = parsed["choices"][0]["message"]["content"]
         data = json.loads(_strip_fences(content))
-        diagnosis = str(data.get("diagnosis") or f"{exc_type.__name__}: {exc_value}")
-        raw_replacement = str(data.get("replacement_code") or "").rstrip("\r\n")
-        if not raw_replacement:
+        if not isinstance(data, dict):
+            return None
+        raw_code = data.get("replacement_code")
+        if not isinstance(raw_code, str):
+            return None
+        raw_replacement = raw_code.rstrip("\r\n")
+        if not raw_replacement.strip():
             return None
         if raw_replacement.strip() == current_line.strip():
             return None
+        raw_diag = data.get("diagnosis")
+        diagnosis = (
+            raw_diag.strip()
+            if isinstance(raw_diag, str) and raw_diag.strip()
+            else f"{exc_type.__name__}: {exc_value}"
+        )
         rep_lines = [f"{ln}{eol}" for ln in raw_replacement.splitlines()]
         return FixProposal(
             diagnosis=diagnosis,
@@ -134,7 +144,16 @@ def propose_fix(
     line_no: int,
     lines: list[str],
 ) -> FixProposal:
-    idx = max(0, min(len(lines) - 1, line_no - 1)) if lines else 0
+    if not lines or not (1 <= line_no <= len(lines)):
+        return FixProposal(
+            diagnosis=f"Uncaught {exc_type.__name__}: {exc_value} (line {line_no} out of range).",
+            file_path=file_path,
+            start_line=max(1, line_no),
+            end_line=max(1, line_no),
+            replacement_lines=[],
+            source="fallback:out_of_range",
+        )
+    idx = line_no - 1
     current = lines[idx] if lines else ""
     stripped = current.lstrip(" \t")
     indent = current[: len(current) - len(stripped)]

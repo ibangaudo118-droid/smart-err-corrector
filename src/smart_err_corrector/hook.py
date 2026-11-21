@@ -23,10 +23,20 @@ def _apply_proposal(proposal: FixProposal) -> tuple[bool, str]:
     if not path.exists():
         return False, f"File not found: {path}"
 
-    original_lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    if not proposal.replacement_lines:
+        return False, "No replacement lines proposed; file left unchanged."
+
+    try:
+        original_lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    except (OSError, UnicodeDecodeError) as exc:
+        return False, f"Could not read file ({exc}); file left unchanged."
+
+    if not (1 <= proposal.start_line <= proposal.end_line <= len(original_lines)):
+        return False, "Invalid proposed line range; file left unchanged."
+
     original_text = "".join(original_lines)
-    start_idx = max(0, proposal.start_line - 1)
-    end_idx = min(len(original_lines), proposal.end_line)
+    start_idx = proposal.start_line - 1
+    end_idx = proposal.end_line
 
     candidate_lines = (
         original_lines[:start_idx]
@@ -122,7 +132,11 @@ class ErrorHook:
             return
 
         while True:
-            answer = input("Apply fix? [a]pply / [k]eep original: ").strip().lower()
+            try:
+                answer = input("Apply fix? [a]pply / [k]eep original: ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                print("\nInput interrupted; keeping original code.")
+                return
             if answer in ("a", "apply"):
                 _, msg = _apply_proposal(proposal)
                 print(msg)
