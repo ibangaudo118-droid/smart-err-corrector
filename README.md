@@ -78,3 +78,9 @@ Ran 6 tests ... OK   # tests/test_proposer.py
 Ran 3 tests ... OK   # tests/test_noop.py
 Ran 5 tests ... OK   # tests/test_edge_cases.py
 \`\`\`
+
+## License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+
+Copyright (c) 2026 David Udoh
