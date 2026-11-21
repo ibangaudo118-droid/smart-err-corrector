@@ -5,7 +5,7 @@ from pathlib import Path
 import urllib.error
 import urllib.request
 
-DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
+DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
 GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 
@@ -36,8 +36,8 @@ def _strip_fences(text: str) -> str:
         lines = cleaned.splitlines()
         if len(lines) >= 2:
             lines = lines[1:]
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
         cleaned = "\n".join(lines).strip()
     return cleaned
 
@@ -48,6 +48,7 @@ def _groq_fallback(
     file_path: Path,
     line_no: int,
     lines: list[str],
+    current_line: str,
     indent: str,
     eol: str,
 ) -> FixProposal | None:
@@ -62,8 +63,10 @@ def _groq_fallback(
 
     system_prompt = (
         "You are a concise Python debugging assistant. "
-        "Given an uncaught exception and surrounding code, propose a replacement "
+        "Given an uncaught exception and surrounding code, propose a concrete fix "
         f"for line {line_no} using base indentation {indent!r}. "
+        "Do NOT repeat the original failing line unchanged; wrap or guard it "
+        "properly so the exception is handled safely. "
         "Respond ONLY with valid JSON containing keys: "
         '"diagnosis" (1 short sentence) and '
         '"replacement_code" (the replacement line(s) for line '
@@ -90,7 +93,7 @@ def _groq_fallback(
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "User-Agent": "smart-err-corrector/0.2",
+            "User-Agent": "smart-err-corrector/0.3",
         },
         method="POST",
     )
@@ -109,10 +112,9 @@ def _groq_fallback(
         raw_replacement = str(data.get("replacement_code") or "").rstrip("\r\n")
         if not raw_replacement:
             return None
-        rep_lines = [
-            f"{ln}{eol}" if not ln.startswith((" ", "\t")) else f"{ln}{eol}"
-            for ln in raw_replacement.splitlines()
-        ]
+        if raw_replacement.strip() == current_line.strip():
+            return None
+        rep_lines = [f"{ln}{eol}" for ln in raw_replacement.splitlines()]
         return FixProposal(
             diagnosis=diagnosis,
             file_path=file_path,
@@ -195,6 +197,7 @@ def propose_fix(
         file_path=file_path,
         line_no=line_no,
         lines=lines,
+        current_line=current,
         indent=indent,
         eol=eol,
     )

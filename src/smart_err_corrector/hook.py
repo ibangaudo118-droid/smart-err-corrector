@@ -14,12 +14,17 @@ HookFunc = Callable[
 ]
 
 
+def _is_noop_change(before_text: str, after_text: str) -> bool:
+    return before_text.strip() == after_text.strip()
+
+
 def _apply_proposal(proposal: FixProposal) -> tuple[bool, str]:
     path = proposal.file_path
     if not path.exists():
         return False, f"File not found: {path}"
 
     original_lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    original_text = "".join(original_lines)
     start_idx = max(0, proposal.start_line - 1)
     end_idx = min(len(original_lines), proposal.end_line)
 
@@ -29,6 +34,12 @@ def _apply_proposal(proposal: FixProposal) -> tuple[bool, str]:
         + original_lines[end_idx:]
     )
     candidate_text = "".join(candidate_lines)
+
+    if candidate_text == original_text or _is_noop_change(
+        "".join(original_lines[start_idx:end_idx]),
+        "".join(proposal.replacement_lines),
+    ):
+        return False, "No code change proposed; file left unchanged."
 
     try:
         ast.parse(candidate_text, filename=str(path))
@@ -93,6 +104,12 @@ class ErrorHook:
         print(f"File:      {target}:{line_no}")
         print(f"Diagnosis: {proposal.diagnosis}\n")
         print(_format_context(lines, line_no))
+
+        if _is_noop_change(before_text, after_text):
+            print("\nNo actionable replacement proposed; file left unchanged.")
+            print("=============================")
+            return
+
         print("\nProposed replacement:")
         print("--- BEFORE ---")
         print(before_text)
